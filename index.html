@@ -106,11 +106,10 @@
 <div id="menu" class="ov show">
   <h1>CENDRES<br>DE L'ABÎME</h1>
   <div class="sub">La nuit ne finit jamais. Eux non plus.</div>
-  <button class="btn cls" data-c="mage">MAGE DES OMBRES<small>Projectiles et sorts arcaniques</small></button>
-  <button class="btn cls fire" data-c="fire">FANATIQUE DU BRASIER<small>Brûlez vif, faites exploser les hordes</small></button>
+  <button class="btn cls fire" data-c="fire">DESCENDRE<small>Fanatique du Brasier — brûlez vif, faites exploser les hordes</small></button>
   <button class="btn small" id="bSound1">SON : ACTIVÉ</button>
   <div class="stats" id="bestTxt"></div>
-  <div class="hint">Glissez n'importe où pour vous déplacer — vos sorts se lancent seuls.<br>
+  <div class="hint">Glissez n'importe où pour vous déplacer — votre brasier consume tout ce qui approche, et les morts explosent.<br>
     Esquive pour traverser les hordes, flacon pour survivre. Chaque niveau, un talent.<br>
     <span style="opacity:.7">Clavier : ZQSD / WASD, Espace = esquive, F = flacon, Échap = pause.</span></div>
 </div>
@@ -373,7 +372,7 @@ const BOSSES=[
 
 /* ============ état ============ */
 let state='menu',time=0,kills=0,bossKills=0,nextBossT=180,nextHordeT=60,spawnAcc=0,levelQueue=0;
-let p=null,skills=null,skillT=null,owned=null,keys=null,bladeAng=0,pyreT=0,sacredT=0,cls='mage';
+let p=null,skills=null,skillT=null,owned=null,keys=null,bladeAng=0,pyreT=0,sacredT=0,cls='fire';
 let enemies=[],projs=[],eprojs=[],orbs=[],parts=[],texts=[],fx=[],decals=[],lights=[],pending=[];
 let cam={x:0,y:0},shake=0,hurtFlash=0,banner=null,boss=null,choices=[],invulnAfterMenu=0;
 const MAXE=260;

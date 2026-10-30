@@ -4,6 +4,7 @@ Action-RPG sombre jouable dans le navigateur, pensé pour le mobile : survivez a
 
 **Jouer :** ouvrez `index.html` dans un navigateur (ou activez GitHub Pages sur la branche).
 
+- Deux classes : **Mage des Ombres** (projectiles et sorts) ou **Fanatique du Brasier** (aura de feu qui vous consume, ennemis brûlés qui explosent en chaîne).
 - Glissez n'importe où pour vous déplacer, vos sorts se lancent automatiquement.
 - **Esquive** : roulade invulnérable. **Flacon** : soin sur la durée, rechargé par les mises à mort.
 - À chaque niveau, choisissez parmi 3 talents : nouveaux sorts, améliorations, passifs, et des **clés de voûte** tous les 5 niveaux.

@@ -586,25 +586,13 @@ function corpseBoom(x,y,r,d,er,cid,mega){
   if(decals.length<140)decals.push({x,y,r:r*.55,a:.6,rot:rand(0,TAU),c:'30,10,6'});
   if(fx.length<70)fx.push({k:'scorch',x,y,r,t:0,max:.5});
   const c=cid&&chains.get(cid),n=c?c.n:0;
-  if(n>=40)celestial(x,y,r,n);
   explosion(x,y,r,d,'player',mega?'#fff4c0':tierCol(n),true,cid);
 }
 // plus la chaîne est longue, plus ça brille : orange → or → blanc → violet du néant
-function celHue(n){return Math.round(((n*9+time*90)%360)/30)*30;}
-function tierCol(n){return n>=100?'hsl('+celHue(n)+',100%,82%)':n>=50?'#e8fbff':n>=40?'#fff4c0':n>=50?'#fff4c0':n>=25?'#ffe060':n>=10?'#ffb030':'#ff8a20';}
+function tierCol(n){return n>=100?'#d070ff':n>=50?'#fff4c0':n>=25?'#ffe060':n>=10?'#ffb030':'#ff8a20';}
 function addBomb(kind,x0,y0,tx,ty,fuse,r,d,cid,col){
   if(bombs.length>=170)return;
   bombs.push({kind,x:x0,y:y0,x0,y0,tx,ty,t:0,fuse,r,d,cid,col,arc:kind==='rune'?0:rand(30,70)});
-}
-// au-delà de ×40, chaque maillon devient céleste : étoile, halo et poussière d'étoiles
-function celestial(x,y,r,n){
-  const hue=n>=100?celHue(n):n>=60?190:45,big=n>=100;
-  if(fx.length<90){fx.push({k:'star',x,y,r:r*(big?2.4:1.7),t:0,max:.55,rot:rand(0,TAU),hue});
-    fx.push({k:'halo',x,y,r:r*(big?2:1.5),t:0,max:.7,hue});}
-  for(let i=0;i<(big?10:6);i++){const a=rand(0,TAU),sp=rand(20,90);
-    parts.length<900&&parts.push({x:x+rand(-r,r)*.5,y:y+rand(-r,r)*.5,vx:Math.cos(a)*sp*.4,vy:-rand(40,140),life:rand(.7,1.3),max:1.3,size:rand(3,6),col:'hsl('+hue+',100%,88%)',glw:true,soul:false,star:true});}
-  if(n%50===0){shake=Math.max(shake,12);sfx('level');
-    if(fx.length<100)fx.push({k:'halo',x,y,r:r*5,t:0,max:1.1,hue});}
 }
 function updateBombs(dt){
   for(const b of bombs){
@@ -896,7 +884,7 @@ function update(dt){
   }
   orbs=orbs.filter(o=>!o.dead);
   // particules
-  for(const q of parts){q.life-=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;if(!q.soul&&!q.ghost&&!q.star){q.vx*=Math.pow(.05,dt);q.vy*=Math.pow(.05,dt);}}
+  for(const q of parts){q.life-=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;if(!q.soul&&!q.ghost){q.vx*=Math.pow(.05,dt);q.vy*=Math.pow(.05,dt);}}
   parts=parts.filter(q=>q.life>0);
   // braises d'ambiance
   if(Math.random()<dt*10){const vw=W/ZOOM,vh=H/ZOOM;
@@ -1329,14 +1317,6 @@ function render(){
     else if(f.k==='flash'){glow(f.col,f.x,f.y,f.r*.5,(1-k)*.6);}
     else if(f.k==='bolt'){ctx.globalAlpha=1-k;for(const [w,c] of [[f.w*3,'rgba(255,230,120,.35)'],[f.w,'#fffbe0']]){
       ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(f.pts[0][0],f.pts[0][1]);for(const q of f.pts)ctx.lineTo(q[0],q[1]);ctx.stroke();}}
-    else if(f.k==='star'){const a=1-k,L=f.r*(.4+k*.8),rot=f.rot+k*1.2;ctx.globalAlpha=a;ctx.fillStyle='hsl('+f.hue+',100%,92%)';
-      ctx.save();ctx.translate(f.x,f.y);ctx.rotate(rot);
-      for(let i=0;i<4;i++){const l=i%2?L*.55:L,wd=L*.07;ctx.beginPath();ctx.moveTo(0,-l);ctx.lineTo(wd,0);ctx.lineTo(0,l);ctx.lineTo(-wd,0);ctx.closePath();ctx.fill();ctx.rotate(Math.PI/4);}
-      ctx.restore();glow('#ffffff',f.x,f.y,L*.25,a);}
-    else if(f.k==='halo'){const a=1-k;ctx.globalAlpha=a*.8;ctx.strokeStyle='hsl('+f.hue+',100%,85%)';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(f.x,f.y,f.r*(.3+k*.9),0,TAU);ctx.stroke();ctx.lineWidth=1;ctx.globalAlpha=a*.5;
-      ctx.beginPath();ctx.arc(f.x,f.y,f.r*(.2+k*.7),0,TAU);ctx.stroke();
-      ctx.globalAlpha=a;ctx.fillStyle='#fff';for(let i=0;i<8;i++){const an=i/8*TAU+k*2;ctx.fillRect(f.x+Math.cos(an)*f.r*(.3+k*.9)-2,f.y+Math.sin(an)*f.r*(.3+k*.9)-2,4,4);}}
     else if(f.k==='implode'){ctx.globalAlpha=.25+.6*k;ctx.strokeStyle='#ffa050';ctx.lineWidth=1.5+3*k;ctx.beginPath();ctx.arc(f.x,f.y,Math.max(1,f.r*(1-k)),0,TAU);ctx.stroke();glow('#ff7020',f.x,f.y,10+22*k,.8*k);}
     else if(f.k==='meteor'){const mx=f.x-160*(1-k),my=f.y-420*(1-k);
       ctx.globalAlpha=.7;ctx.strokeStyle='#ff8a30';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(mx-50,my-130);ctx.stroke();
@@ -1347,7 +1327,6 @@ function render(){
   ctx.globalAlpha=1;
   // particules lumineuses
   for(const q of parts){if(!q.glw)continue;const a=q.life/q.max;
-    if(q.star){const sz=q.size*(.6+.4*Math.sin(time*20+q.x));ctx.globalAlpha=a;ctx.fillStyle=q.col;ctx.fillRect(q.x-sz*1.5,q.y-.6,sz*3,1.2);ctx.fillRect(q.x-.6,q.y-sz*1.5,1.2,sz*3);glow(q.col,q.x,q.y,sz*2,a*.5);q.vx*=.98;continue;}
     if(q.soul){ctx.globalAlpha=a*.9;ctx.fillStyle=q.col;ctx.fillRect(q.x-q.size/2,q.y-q.size/2,q.size,q.size);glow(q.col,q.x,q.y,q.size*4,a*.35);continue;}
     ctx.globalAlpha=a;ctx.fillStyle=q.col;ctx.fillRect(q.x-q.size/2,q.y-q.size/2,q.size,q.size);}
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';

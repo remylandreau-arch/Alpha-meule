@@ -311,7 +311,13 @@ SK.sacred={name:'Brasier Sacré',ico:'☼',col:'#ffb030',max:7,
   base:"Vous vous embrasez : aura dévastatrice proportionnelle à votre vie max, mais elle vous consume. Les ennemis brûlés explosent en mourant.",
   num:l=>({dps:(p?p.maxHp:100)*(.26+.05*(l-1)),rad:100+12*l,boom:.18+.03*(l-1)}),
   show:[['dps','Dégâts/s',v=>Math.round(v)],['rad','Rayon',v=>Math.round(v)],['boom','Explosion',v=>Math.round(v*100)+'% vie du mort']]};
-const SKILL_ORDER=['bolt','sacred','nova','blades','storm','pyre'];
+SK.meteor={name:'Pluie de Météores',ico:'☄',col:'#ff6a2a',max:6,
+  base:"Des rochers en fusion s'abattent sur les ennemis proches et les enflamment.",
+  num:l=>({dmg:40*(1+.32*(l-1)),n:1+Math.floor(l/2),cd:2.6*Math.pow(.9,l-1),rad:62+6*l}),
+  show:[['dmg','Dégâts',v=>Math.round(v)],['n','Météores',v=>v],['rad','Rayon',v=>Math.round(v)],['cd','Recharge',v=>v.toFixed(2)+'s']]};
+const SKILL_ORDER=['bolt','sacred','pyre','meteor','nova','blades','storm'];
+// seul le feu est proposé : sorts, passifs et clés de voûte non-feu exclus
+const FIRE_SKILLS=['sacred','pyre','meteor'],NOT_FIRE=['proj','spd','echo','frost'];
 
 const PASSIVES=[
   {id:'vit',name:'Vitalité Sombre',ico:'♥',col:'#e04848',max:8,desc:'+22 vie maximale, soigne 22.',apply:()=>{p.maxHp+=22;heal(22);}},
@@ -385,9 +391,9 @@ function newGame(c){
     onKill:0,flaskGain:1,flaskHeal:.4,dashCdMul:1,extraProj:0,lvl:1,xp:0,xpNext:xpFor(1),
     dashT:0,dashCd:0,dvx:0,dvy:0,invuln:0,flask:60,flaskMax:60,healT:0,healRate:0,face:-Math.PI/2,moving:false,rerolls:2,anim:0,
     fury:false,frost:false,echo:false,pyreBoom:false,soul:false,critDouble:false,dmgTaken:0,pctRegen:0,burnMul:1,explMul:1,explArea:1,sacredMul:1,chainFire:false};
-  skills={bolt:1,sacred:0,nova:0,blades:0,storm:0,pyre:0};
+  skills={bolt:1,sacred:0,nova:0,blades:0,storm:0,pyre:0,meteor:0};
   if(cls==='fire'){skills.bolt=0;skills.sacred=1;p.maxHp=p.hp=160;p.pctRegen=.01;p.spd=145;}
-  skillT={bolt:.3,nova:1,blades:0,storm:1,pyre:0};
+  skillT={bolt:.3,nova:1,blades:0,storm:1,pyre:0,meteor:1};
   owned={};keys=new Set();
   enemies=[];projs=[];eprojs=[];orbs=[];parts=[];texts=[];fx=[];decals=[];pending=[];
   time=0;kills=0;bossKills=0;nextBossT=180;nextHordeT=60;spawnAcc=0;levelQueue=0;boss=null;
@@ -578,6 +584,20 @@ function updateSkills(dt){
     if(sacredT<=0){sacredT=.25;enemiesInRadius(p.x,p.y,R,e=>{const [d,c]=roll(S.dps*.25*p.sacredMul);damageEnemy(e,d,c,0,0,true);});}
     if(Math.random()<dt*50){const a=rand(0,TAU),rr=R*(.2+.8*Math.sqrt(Math.random()));
       part(p.x+Math.cos(a)*rr,p.y+Math.sin(a)*rr,rand(-12,12),rand(-95,-40),rand(.4,.9),rand(2.5,5),pick(['#ffcf40','#ff8a20','#ff5a10','#fff0a0']),true);}
+  }
+  // Météores
+  if(skills.meteor){
+    skillT.meteor-=dt;
+    if(skillT.meteor<=0){
+      const S=SK.meteor.num(skills.meteor);skillT.meteor=S.cd;
+      const cands=[];for(const e of enemies){if(e.dead)continue;const dx=e.x-p.x,dy=e.y-p.y;if(dx*dx+dy*dy<400*400)cands.push(e);}
+      if(!cands.length)skillT.meteor=.3;
+      for(let i=0;i<S.n&&cands.length;i++){const t=cands.splice((Math.random()*cands.length)|0,1)[0];
+        const x=t.x+rand(-15,15),y=t.y+rand(-15,15),dl=i*.12;
+        later(dl,()=>fx.push({k:'meteor',x,y,t:0,max:.45}));
+        later(dl+.45,()=>{const [d]=roll(S.dmg);explosion(x,y,S.rad*p.area*p.explArea,d,'player','#ff6a1a',true);
+          if(fx.length<110)fx.push({k:'scorch',x,y,r:S.rad*p.area,t:0,max:.8});});}
+    }
   }
   // Nova
   if(skills.nova){
@@ -858,12 +878,12 @@ function openLevelUp(){
 }
 function genChoices(){
   const c=[];
-  for(const k of SKILL_ORDER){const l=skills[k];
+  for(const k of FIRE_SKILLS){const l=skills[k];
     if(l>0&&l<SK[k].max)c.push({kind:'skill',id:k,w:k==='bolt'?1.3:1.5});
     else if(l===0)c.push({kind:'new',id:k,w:1.15});}
-  for(const pa of PASSIVES)if((owned[pa.id]||0)<pa.max&&(!pa.req||pa.req()))c.push({kind:'pas',id:pa.id,w:pa.w||1});
+  for(const pa of PASSIVES)if((owned[pa.id]||0)<pa.max&&(!pa.req||pa.req())&&!NOT_FIRE.includes(pa.id))c.push({kind:'pas',id:pa.id,w:pa.w||1});
   const out=[];
-  if(p.lvl%5===0||Math.random()<.04){const ks=KEYSTONES.filter(k=>!owned['k_'+k.id]);if(ks.length)out.push({kind:'key',id:pick(ks).id});}
+  if(p.lvl%5===0||Math.random()<.04){const ks=KEYSTONES.filter(k=>!owned['k_'+k.id]&&!NOT_FIRE.includes(k.id));if(ks.length)out.push({kind:'key',id:pick(ks).id});}
   while(out.length<3&&c.length){let tot=0;for(const x of c)tot+=x.w;let r=Math.random()*tot,i=0;
     for(;i<c.length;i++){r-=c[i].w;if(r<=0)break;}out.push(c.splice(Math.min(i,c.length-1),1)[0]);}
   while(out.length<3)out.push({kind:'heal',id:'heal'+out.length});
@@ -1126,7 +1146,7 @@ function render(){
   frameLights.push({x:p.x,y:p.y,r:320+fl,i:1});
   for(let i=0;i<projs.length&&i<30;i++)frameLights.push({x:projs[i].x,y:projs[i].y,r:70,i:.55});
   for(let i=0;i<eprojs.length&&i<25;i++)frameLights.push({x:eprojs[i].x,y:eprojs[i].y,r:45,i:.4});
-  let nl=0;for(const f of fx)if(f.k==='flash'&&nl++<26)frameLights.push({x:f.x,y:f.y,r:f.r,i:(1-f.t/f.max)*.9});
+  let nl=0;for(const f of fx)if(f.k==='meteor')frameLights.push({x:f.x-160*(1-f.t/f.max),y:f.y-420*(1-f.t/f.max),r:90,i:.7});else if(f.k==='flash'&&nl++<26)frameLights.push({x:f.x,y:f.y,r:f.r,i:(1-f.t/f.max)*.9});
   if(skills.sacred)frameLights.push({x:p.x,y:p.y,r:SK.sacred.num(skills.sacred).rad*p.area*2,i:.7});
   if(skills.pyre)frameLights.push({x:p.x,y:p.y,r:SK.pyre.num(skills.pyre).rad*p.area*1.6,i:.35});
   const A=act();
@@ -1183,6 +1203,9 @@ function render(){
     else if(f.k==='flash'){glow(f.col,f.x,f.y,f.r*.5,(1-k)*.6);}
     else if(f.k==='bolt'){ctx.globalAlpha=1-k;for(const [w,c] of [[f.w*3,'rgba(255,230,120,.35)'],[f.w,'#fffbe0']]){
       ctx.strokeStyle=c;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(f.pts[0][0],f.pts[0][1]);for(const q of f.pts)ctx.lineTo(q[0],q[1]);ctx.stroke();}}
+    else if(f.k==='meteor'){const mx=f.x-160*(1-k),my=f.y-420*(1-k);
+      ctx.globalAlpha=.7;ctx.strokeStyle='#ff8a30';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(mx,my);ctx.lineTo(mx-50,my-130);ctx.stroke();
+      glow('#ff5a10',mx,my,34,.9);glow('#fff0a0',mx,my,12,1);glow('#ff3a00',f.x,f.y,30*k,.35*k);}
     else if(f.k==='pillar'){ctx.globalAlpha=(1-k)*.6;const g=ctx.createLinearGradient(0,p.y-300,0,p.y);g.addColorStop(0,'rgba(255,200,120,0)');g.addColorStop(1,'rgba(255,190,110,.8)');
       ctx.fillStyle=g;ctx.fillRect(p.x-18*(1-k*.5),p.y-300,36*(1-k*.5),300);glow('#ffd080',p.x,p.y,80*(1+k),(1-k)*.7);}
   }

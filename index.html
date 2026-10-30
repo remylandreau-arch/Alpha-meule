@@ -403,7 +403,7 @@ let state='menu',time=0,kills=0,bossKills=0,nextBossT=180,nextHordeT=60,spawnAcc
 let p=null,skills=null,skillT=null,owned=null,keys=null,bladeAng=0,pyreT=0,sacredT=0,cls='fire';
 let enemies=[],projs=[],eprojs=[],orbs=[],parts=[],texts=[],fx=[],decals=[],lights=[],pending=[];
 let cam={x:0,y:0},shake=0,hurtFlash=0,banner=null,boss=null,choices=[],invulnAfterMenu=0;
-const MAXE=380;
+const MAXE=1000;
 
 function xpFor(l){return Math.floor(6+l*6+l*l*1.35);}
 
@@ -831,7 +831,7 @@ function update(dt){
   for(let i=pending.length-1;i>=0;i--)if(time>=pending[i].t){const f=pending[i].fn;pending.splice(i,1);f();}
 
   // apparitions
-  const rate=(1.6+time*.05)*(boss?.45:1);
+  const rate=3*(1.6+time*.05)*(boss?.45:1);
   spawnAcc+=rate*dt;
   while(spawnAcc>=1){spawnAcc--;if(enemies.length>=MAXE)break;
     const [x,y]=spawnRing();const mr=time/60;
@@ -841,8 +841,8 @@ function update(dt){
     else spawnEnemy(randomType(),x,y,rar);}
   if(time>=nextHordeT){nextHordeT+=60;
     if(!boss){showBanner('','Une horde approche…','#c23a2a',2.5);
-      const n=Math.min(70,22+Math.floor(time/8)),R=Math.hypot(W,H)/2/ZOOM+30,a0=rand(0,TAU);
-      for(let i=0;i<n;i++){if(enemies.length>=MAXE+40)break;const a=a0+i/n*TAU;spawnEnemy(time>120&&i%3===0?'ghoul':'zombie',p.x+Math.cos(a)*R,p.y+Math.sin(a)*R,0);}}}
+      const n=3*Math.min(70,22+Math.floor(time/8)),R=Math.hypot(W,H)/2/ZOOM+30,a0=rand(0,TAU);
+      for(let i=0;i<n;i++){if(enemies.length>=MAXE+120)break;const a=a0+i/n*TAU;spawnEnemy(time>120&&i%3===0?'ghoul':'zombie',p.x+Math.cos(a)*R,p.y+Math.sin(a)*R,0);}}}
   if(!boss&&time>=nextBossT)spawnBoss();
 
   gridBuild();

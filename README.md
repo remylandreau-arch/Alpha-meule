@@ -1,12 +1,12 @@
 # Cendres de l'Abîme
 
-Action-RPG sombre jouable dans le navigateur, pensé pour le mobile : survivez aux hordes, montez de niveau et choisissez vos talents.
+Jeu d'action sombre pour mobile dont le but est de déclencher les plus longues **chaînes d'explosions** possibles.
 
-**Jouer :** ouvrez `index.html` dans un navigateur (ou activez GitHub Pages sur la branche).
+**Jouer :** ouvrez `index.html` dans un navigateur.
 
-- Vous incarnez le **Fanatique du Brasier** : une aura de feu qui vous consume, et des ennemis brûlés qui explosent en chaîne.
-- Glissez n'importe où pour vous déplacer, vos sorts se lancent automatiquement.
-- **Esquive** : roulade invulnérable. **Flacon** : soin sur la durée, rechargé par les mises à mort.
-- À chaque niveau, choisissez parmi 3 talents : nouveaux sorts, améliorations, passifs, et des **clés de voûte** tous les 5 niveaux.
-- Monstres magiques (bleus) et rares (dorés) avec modificateurs, hordes chaque minute, gardien toutes les ~3 minutes qui fait passer à l'acte suivant.
-- Clavier : ZQSD/WASD, Espace (esquive), F (flacon), Échap (pause).
+- Vous êtes le **Fanatique du Brasier** : une aura de feu qui brûle tout autour de vous… et vous consume aussi.
+- Chaque monstre tué par le feu **implose** (il aspire ses voisins) puis **explose**, ce qui tue et enflamme les suivants : la chaîne continue.
+- Plus la chaîne est longue, plus les explosions sont fortes et plus elle rapporte : Boucherie ×10, Massacre ×20, Carnage ×40, Cataclysme ×80, Apocalypse ×150.
+- Score = monstres tués + bonus de chaîne (longueur² × 4). Le record garde le meilleur score et la plus longue chaîne.
+- Talents de chaîne : Résonance, Singularité, Combustion, Festin de Cendres, Détonation Maîtresse, Réaction en Chaîne…
+- Glissez pour bouger. Esquive et flacon en bas à droite. Clavier : ZQSD/WASD, Espace, F, Échap.

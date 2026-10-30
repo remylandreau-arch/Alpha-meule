@@ -109,7 +109,7 @@
   <button class="btn cls fire" data-c="fire">DESCENDRE<small>Fanatique du Brasier — brûlez vif, faites exploser les hordes</small></button>
   <button class="btn small" id="bSound1">SON : ACTIVÉ</button>
   <div class="stats" id="bestTxt"></div>
-  <div class="hint"><b style="color:#e8cf95">Le but : déclencher les plus longues chaînes d'explosions.</b><br>Chaque monstre tué par le feu implose, aspire ses voisins puis explose — et la chaîne continue.<br>Empilez les sources d'explosion : héraut, éclats, répliques, bombes vivantes… et le flacon déclenche une frénésie explosive.<br>Glissez n'importe où pour vous déplacer.<br>
+  <div class="hint"><b style="color:#e8cf95">Le but : déclencher les plus longues chaînes d'explosions.</b><br>Chaque monstre tué par le feu explose et enflamme ses voisins — qui explosent à leur tour.<br>Empilez les sources d'explosion : héraut, éclats, répliques, bombes vivantes… et le flacon déclenche une frénésie explosive.<br>Glissez n'importe où pour vous déplacer.<br>
     Esquive pour traverser les hordes, flacon pour survivre. Chaque niveau, un talent.<br>
     <span style="opacity:.7">Clavier : ZQSD / WASD, Espace = esquive, F = flacon, Échap = pause.</span></div>
 </div>
@@ -155,14 +155,14 @@ function fmtTime(t){t=Math.floor(t);return Math.floor(t/60)+':'+String(t%60).pad
 /* ============ canvas ============ */
 const cv=$('c'),ctx=cv.getContext('2d');
 const dark=document.createElement('canvas'),dctx=dark.getContext('2d');
-let W=0,H=0,DPR=1,ZOOM=1;
+let W=0,H=0,DPR=1,ZOOM=1,FZ=1;
 const SA={t:0,r:0,b:0,l:0};
 function resize(){
   DPR=Math.min(window.devicePixelRatio||1,1.75);
   W=window.innerWidth;H=window.innerHeight;
   cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
   dark.width=Math.max(1,Math.round(W*DPR*.5));dark.height=Math.max(1,Math.round(H*DPR*.5));
-  ZOOM=clamp(Math.min(W,H)/540,.62,1.3);
+  ZOOM=clamp(Math.min(W,H)/800,.42,.95);FZ=Math.max(1,.9/ZOOM);
   const s=getComputedStyle($('safe'));
   SA.t=parseFloat(s.paddingTop)||0;SA.r=parseFloat(s.paddingRight)||0;SA.b=parseFloat(s.paddingBottom)||0;SA.l=parseFloat(s.paddingLeft)||0;
 }
@@ -352,7 +352,7 @@ const PASSIVES=[
   {id:'fres',name:'Chair Ignifugée',ico:'❖',col:'#ff9a40',max:4,w:1.6,req:()=>skills.sacred>0,desc:'-20% brûlure du Brasier, +0,4% vie max régénérée/s.',apply:()=>{p.burnMul*=.8;p.pctRegen+=.004;}},
   {id:'combust',name:'Combustion',ico:'✸',col:'#ffcf40',max:5,w:1.6,req:()=>skills.sacred>0||p.pyreBoom,desc:'+35% dégâts et +15% rayon des explosions.',apply:()=>{p.explMul+=.35;p.explArea+=.15;}},
   {id:'amp',name:'Résonance',ico:'⁂',col:'#ffd060',max:5,w:1.5,desc:'Chaque maillon de la chaîne : +1,5% dégâts d\'explosion supplémentaires.',apply:()=>{p.chainAmp+=.015;}},
-  {id:'pull',name:'Singularité',ico:'◍',col:'#c080ff',max:4,w:1.4,desc:'+30% rayon et force de l\'implosion qui aspire les monstres.',apply:()=>{p.pull+=.3;}},
+  {id:'pull',name:'Propagation',ico:'◍',col:'#c080ff',max:4,w:1.4,desc:'Les explosions enflamment les monstres jusqu\'à +35% au-delà de leur rayon, sans les toucher.',apply:()=>{p.pull+=.35;}},
   {id:'feast',name:'Festin de Cendres',ico:'♥',col:'#ff5a3a',max:3,w:1.2,desc:'Tous les 10 maillons d\'une chaîne, soigne 3% de vie max.',apply:()=>{p.feast++;}},
   {id:'dash',name:"Pas de l'Ombre",ico:'»',col:'#8a8aff',max:3,desc:"-20% recharge de l'esquive.",apply:()=>{p.dashCdMul*=.8;}},
 ];
@@ -403,13 +403,13 @@ let state='menu',time=0,kills=0,bossKills=0,nextBossT=180,nextHordeT=60,spawnAcc
 let p=null,skills=null,skillT=null,owned=null,keys=null,bladeAng=0,pyreT=0,sacredT=0,cls='fire';
 let enemies=[],projs=[],eprojs=[],orbs=[],parts=[],texts=[],fx=[],decals=[],lights=[],pending=[];
 let cam={x:0,y:0},shake=0,hurtFlash=0,banner=null,boss=null,choices=[],invulnAfterMenu=0;
-const MAXE=290;
+const MAXE=380;
 
 function xpFor(l){return Math.floor(6+l*6+l*l*1.35);}
 
 function newGame(c){
   cls=c||cls;
-  p={x:0,y:0,r:13,hp:100,maxHp:100,spd:138,dmgMul:1,cdr:1,crit:.05,critMul:1.5,regen:.4,armor:0,pickup:70,xpMul:1,area:1,
+  p={x:0,y:0,r:13,hp:100,maxHp:100,spd:138,dmgMul:1,cdr:1,crit:.05,critMul:1.5,regen:.4,armor:0,pickup:115,xpMul:1,area:1,
     onKill:0,flaskGain:1,flaskHeal:.4,dashCdMul:1,extraProj:0,lvl:1,xp:0,xpNext:xpFor(1),
     dashT:0,dashCd:0,dvx:0,dvy:0,invuln:0,flask:60,flaskMax:60,frenzyT:0,healT:0,healRate:0,face:-Math.PI/2,moving:false,rerolls:2,anim:0,
     fury:false,frost:false,echo:false,pyreBoom:false,soul:false,critDouble:false,dmgTaken:0,pctRegen:0,burnMul:1,explMul:1,explArea:1,sacredMul:1,chainFire:false,chainAmp:.02,pull:1,feast:0,mega:false};
@@ -525,7 +525,7 @@ function killEnemy(e){
     const n=c.n,mega=p.mega&&n%10===0,amp=1+p.chainAmp*Math.min(n,250);
     const d=(e.maxHp*S.boom+S.dps*.3)*p.explMul*p.dmgMul*p.sacredMul*amp*(mega?3:1),
       r=(36+e.r)*p.explArea*(e.boss?2:1)*(1+Math.min(1.2,n*.012))*(mega?2.3:1)*(p.frenzyT>0?1.4:1);
-    implode(e.x,e.y,r*1.9*p.pull,e.boss?2:1);
+    implode(e.x,e.y,r*.9,1);
     if(p.feast&&n%10===0)heal(p.maxHp*.03*p.feast);
     chainSfx(n);
     later(.17,()=>corpseBoom(e.x,e.y,r,d,e.r,cid,mega));}
@@ -571,10 +571,8 @@ function updateChains(dt){
   for(const q of chainPops)q.t+=dt;chainPops=chainPops.filter(q=>q.t<2);
 }
 function implode(x,y,R,str){
-  // le cadavre s'effondre et aspire ses voisins avant d'exploser
+  // le cadavre se contracte un instant avant d'exploser (purement visuel, n'attire rien)
   if(fx.length<70)fx.push({k:'implode',x,y,r:R,t:0,max:.17});
-  enemiesInRadius(x,y,R,o=>{if(o.boss)return;o.kbx+=(x-o.x)*3.6*str;o.kby+=(y-o.y)*3.6*str;});
-  for(let i=0;i<6;i++){const a=rand(0,TAU),d=R*rand(.5,1);part(x+Math.cos(a)*d,y+Math.sin(a)*d,-Math.cos(a)*d*5,-Math.sin(a)*d*5,.17,2.5,'#ffb060',true);}
 }
 let chainSfxT=0;
 function chainSfx(n){
@@ -613,6 +611,7 @@ function explosion(x,y,r,d,owner,col,fire,cid,src){
   shake=Math.max(shake,owner==='enemy'?5:2.5);sfx('boom');
   if(owner==='enemy'){const dx=p.x-x,dy=p.y-y;if(dx*dx+dy*dy<(r+p.r)**2)hurt(d);}
   else{enemiesInRadius(x,y,r,e=>damageEnemy(e,d,false,0,0,fire&&(p.chainFire||skills.sacred>0),cid));
+    if(p.pull>1&&fire)enemiesInRadius(x,y,r*p.pull,e=>{e.burnT=Math.max(e.burnT,1.2);if(cid&&!e.chainId)e.chainId=cid;});
     // effets secondaires : éclats et répliques (sans récursion sur eux-mêmes)
     if(skills.frag&&src!=='frag'){const F=SK.frag.num(skills.frag);
       if(Math.random()<F.chance*(p.frenzyT>0?1.6:1))for(let i=0;i<F.n;i++){const a=rand(0,TAU),dd=rand(40,110)*Math.sqrt(r/50);
@@ -832,7 +831,7 @@ function update(dt){
   for(let i=pending.length-1;i>=0;i--)if(time>=pending[i].t){const f=pending[i].fn;pending.splice(i,1);f();}
 
   // apparitions
-  const rate=(1.1+time*.034)*(boss?.45:1);
+  const rate=(1.6+time*.05)*(boss?.45:1);
   spawnAcc+=rate*dt;
   while(spawnAcc>=1){spawnAcc--;if(enemies.length>=MAXE)break;
     const [x,y]=spawnRing();const mr=time/60;
@@ -1247,7 +1246,7 @@ function render(){
 
   // ---- lumières ----
   const fl=Math.sin(time*7)*6+Math.sin(time*13.3)*4;
-  frameLights.push({x:p.x,y:p.y,r:320+fl,i:1});
+  const torch=Math.max(320,Math.max(W,H)*.36/ZOOM);frameLights.push({x:p.x,y:p.y,r:torch+fl,i:1});
   for(let i=0;i<projs.length&&i<30;i++)frameLights.push({x:projs[i].x,y:projs[i].y,r:70,i:.55});
   for(let i=0;i<eprojs.length&&i<25;i++)frameLights.push({x:eprojs[i].x,y:eprojs[i].y,r:45,i:.4});
   let nl=0;for(const f of fx)if(f.k==='meteor')frameLights.push({x:f.x-160*(1-f.t/f.max),y:f.y-420*(1-f.t/f.max),r:90,i:.7});else if(f.k==='flash'&&nl++<18)frameLights.push({x:f.x,y:f.y,r:f.r,i:(1-f.t/f.max)*.9});
@@ -1269,7 +1268,7 @@ function render(){
   worldTransform(sx,sy);
   ctx.globalCompositeOperation='lighter';
   // teinte chaude de la torche
-  glow('rgba(255,130,60,1)',p.x,p.y,300+fl,.16);
+  glow('rgba(255,130,60,1)',p.x,p.y,torch*.9+fl,.16);
   if(skills.sacred){const R=SK.sacred.num(skills.sacred).rad*p.area;
     glow('#ff6a10',p.x,p.y,R*1.1,.22+Math.sin(time*7)*.04);glow('#ffd060',p.x,p.y,26,.55);
     ctx.globalAlpha=.35+Math.sin(time*9)*.1;ctx.strokeStyle='#ff9a30';ctx.lineWidth=2;ctx.beginPath();ctx.arc(p.x,p.y,R,0,TAU);ctx.stroke();ctx.globalAlpha=1;}
@@ -1347,12 +1346,12 @@ function render(){
   worldTransform(sx,sy);
   ctx.textAlign='center';ctx.textBaseline='middle';
   for(const t of texts){const k=t.t/t.max;ctx.globalAlpha=k<.7?1:1-(k-.7)/.3;
-    ctx.font=(t.crit?'900 17px ':'700 12px ')+'Cinzel,serif';
+    ctx.font=(t.crit?'900 '+(17*FZ|0)+'px ':'700 '+(12*FZ|0)+'px ')+'Cinzel,serif';
     const sc=t.crit&&k<.15?1.4-k*2.6:1;ctx.save();ctx.translate(t.x,t.y);ctx.scale(sc,sc);
     ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.85)';ctx.strokeText(t.v,0,0);ctx.fillStyle=t.col;ctx.fillText(t.v,0,0);ctx.restore();}
   ctx.globalAlpha=1;
   // noms et vies des élites
-  ctx.font='700 10px Cinzel,serif';
+  ctx.font='700 '+(10*FZ|0)+'px Cinzel,serif';
   for(const e of enemies){if(!e.rarity||e.boss||e.x<x0||e.x>x1||e.y<y0||e.y>y1)continue;
     const w=e.r*2.4,y=e.y-e.r-12;ctx.fillStyle='rgba(0,0,0,.7)';ctx.fillRect(e.x-w/2,y,w,4);
     ctx.fillStyle=e.rarity===2?'#e8b830':'#6a8aff';ctx.fillRect(e.x-w/2,y,w*Math.max(0,e.hp/e.maxHp),4);
@@ -1425,7 +1424,7 @@ function drawHUD(){
   const sc=score.toLocaleString('fr-FR');ctx.strokeText(sc,W/2,T+12);ctx.fillStyle='#ffd88a';ctx.fillText(sc,W/2,T+12);
   // chaîne en cours (la plus longue)
   let cur=null;for(const c of chains.values())if(c.n>=3&&(!cur||c.n>cur.n))cur=c;
-  const cy=H*.2;
+  const cy=H*(boss?.27:.2);
   if(cur){const rk=rankOf(cur.n),b=Math.max(0,1-(time-cur.bump)*8),fs=Math.min(64,26+Math.sqrt(cur.n)*4)*(1+b*.18);
     ctx.textBaseline='middle';ctx.font='900 '+fs+'px Cinzel,serif';ctx.lineWidth=6;ctx.strokeStyle='rgba(0,0,0,.9)';
     ctx.strokeText('×'+cur.n,W/2,cy);ctx.fillStyle=rk[2];ctx.fillText('×'+cur.n,W/2,cy);
@@ -1438,7 +1437,8 @@ function drawHUD(){
   // bannière
   if(banner){const k=banner.t/banner.dur,a=k<.15?k/.15:k>.75?(1-k)/.25:1;ctx.globalAlpha=Math.max(0,a);
     ctx.textAlign='center';ctx.textBaseline='middle';const y=H*.3;
-    if(banner.title){ctx.font='900 '+Math.min(34,W*.075)+'px Cinzel,serif';ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.9)';
+    if(banner.title){let fs=Math.min(34,W*.075);ctx.font='900 '+fs+'px Cinzel,serif';const tw=ctx.measureText(banner.title).width;
+      if(tw>W-32){fs*=(W-32)/tw;ctx.font='900 '+fs+'px Cinzel,serif';}ctx.lineWidth=5;ctx.strokeStyle='rgba(0,0,0,.9)';
       ctx.strokeText(banner.title,W/2,y);ctx.fillStyle=banner.col;ctx.fillText(banner.title,W/2,y);}
     ctx.font='italic 500 '+Math.min(22,W*.05)+'px "Cormorant Garamond",serif';ctx.lineWidth=4;ctx.strokeStyle='rgba(0,0,0,.9)';
     ctx.strokeText(banner.sub,W/2,y+(banner.title?34:0));ctx.fillStyle='#c8b490';ctx.fillText(banner.sub,W/2,y+(banner.title?34:0));

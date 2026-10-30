@@ -109,7 +109,7 @@
   <button class="btn cls fire" data-c="fire">DESCENDRE<small>Fanatique du Brasier — brûlez vif, faites exploser les hordes</small></button>
   <button class="btn small" id="bSound1">SON : ACTIVÉ</button>
   <div class="stats" id="bestTxt"></div>
-  <div class="hint"><b style="color:#e8cf95">Le but : déclencher les plus longues chaînes d'explosions.</b><br>Chaque monstre tué par le feu implose, aspire ses voisins puis explose — et la chaîne continue.<br>Glissez n'importe où pour vous déplacer.<br>
+  <div class="hint"><b style="color:#e8cf95">Le but : déclencher les plus longues chaînes d'explosions.</b><br>Chaque monstre tué par le feu implose, aspire ses voisins puis explose — et la chaîne continue.<br>Empilez les sources d'explosion : héraut, éclats, répliques, bombes vivantes… et le flacon déclenche une frénésie explosive.<br>Glissez n'importe où pour vous déplacer.<br>
     Esquive pour traverser les hordes, flacon pour survivre. Chaque niveau, un talent.<br>
     <span style="opacity:.7">Clavier : ZQSD / WASD, Espace = esquive, F = flacon, Échap = pause.</span></div>
 </div>
@@ -315,9 +315,25 @@ SK.meteor={name:'Pluie de Météores',ico:'☄',col:'#ff6a2a',max:6,
   base:"Des rochers en fusion s'abattent sur les ennemis proches et les enflamment.",
   num:l=>({dmg:40*(1+.32*(l-1)),n:1+Math.floor(l/2),cd:2.6*Math.pow(.9,l-1),rad:62+6*l}),
   show:[['dmg','Dégâts',v=>Math.round(v)],['n','Météores',v=>v],['rad','Rayon',v=>Math.round(v)],['cd','Recharge',v=>v.toFixed(2)+'s']]};
-const SKILL_ORDER=['bolt','sacred','pyre','meteor','nova','blades','storm'];
+const SKILL_ORDER=['bolt','sacred','herald','frag','after','bomb','pyre','meteor','nova','blades','storm'];
 // seul le feu est proposé : sorts, passifs et clés de voûte non-feu exclus
-const FIRE_SKILLS=['sacred','pyre','meteor'],NOT_FIRE=['proj','spd','echo','frost'];
+SK.herald={name:'Héraut des Cendres',ico:'❋',col:'#ffd040',max:6,
+  base:"Chaque mort peut libérer des braises incandescentes qui bondissent sur les ennemis voisins et explosent.",
+  num:l=>({chance:Math.min(1,.3+.12*(l-1)),n:1+Math.floor(l/2),dmg:22*(1+.32*(l-1)),rad:34+4*l}),
+  show:[['chance','Chance',v=>Math.round(v*100)+'%'],['n','Braises',v=>v],['dmg','Dégâts',v=>Math.round(v)],['rad','Rayon',v=>Math.round(v)]]};
+SK.frag={name:'Fragmentation',ico:'⁜',col:'#ff9a50',max:6,
+  base:"Les explosions projettent des éclats brûlants qui explosent à leur tour en retombant.",
+  num:l=>({chance:Math.min(1,.25+.12*(l-1)),n:2+Math.floor(l/2),pct:.35+.05*(l-1),rad:30+3*l}),
+  show:[['chance','Chance',v=>Math.round(v*100)+'%'],['n','Éclats',v=>v],['pct','Puissance',v=>Math.round(v*100)+'%'],['rad','Rayon',v=>Math.round(v)]]};
+SK.after={name:'Répliques',ico:'⊛',col:'#ff6a8a',max:5,
+  base:"Les explosions laissent une rune ardente qui détone une seconde fois.",
+  num:l=>({chance:Math.min(1,.3+.15*(l-1)),pct:.5+.12*(l-1)}),
+  show:[['chance','Chance',v=>Math.round(v*100)+'%'],['pct','Puissance',v=>Math.round(v*100)+'%']]};
+SK.bomb={name:'Bombe Vivante',ico:'◉',col:'#ff3a3a',max:6,
+  base:"Marque régulièrement un monstre : il enfle puis détone dans une énorme explosion qui lance une chaîne.",
+  num:l=>({dmg:70*(1+.35*(l-1)),rad:105+14*l,cd:5*Math.pow(.86,l-1),n:1+Math.floor((l-1)/2)}),
+  show:[['dmg','Dégâts',v=>Math.round(v)],['rad','Rayon',v=>Math.round(v)],['n','Bombes',v=>v],['cd','Recharge',v=>v.toFixed(1)+'s']]};
+const FIRE_SKILLS=['sacred','pyre','meteor','herald','frag','after','bomb'],NOT_FIRE=['proj','spd','echo','frost'];
 
 const PASSIVES=[
   {id:'vit',name:'Vitalité Sombre',ico:'♥',col:'#e04848',max:8,desc:'+22 vie maximale, soigne 22.',apply:()=>{p.maxHp+=22;heal(22);}},
@@ -381,6 +397,7 @@ const BOSSES=[
 ];
 
 /* ============ état ============ */
+let bombs=[],boomHeat=0,boomFx=0;
 let chains=new Map(),chainSeq=0,score=0,bestChain=0,chainPops=[];
 let state='menu',time=0,kills=0,bossKills=0,nextBossT=180,nextHordeT=60,spawnAcc=0,levelQueue=0;
 let p=null,skills=null,skillT=null,owned=null,keys=null,bladeAng=0,pyreT=0,sacredT=0,cls='fire';
@@ -394,14 +411,14 @@ function newGame(c){
   cls=c||cls;
   p={x:0,y:0,r:13,hp:100,maxHp:100,spd:138,dmgMul:1,cdr:1,crit:.05,critMul:1.5,regen:.4,armor:0,pickup:70,xpMul:1,area:1,
     onKill:0,flaskGain:1,flaskHeal:.4,dashCdMul:1,extraProj:0,lvl:1,xp:0,xpNext:xpFor(1),
-    dashT:0,dashCd:0,dvx:0,dvy:0,invuln:0,flask:60,flaskMax:60,healT:0,healRate:0,face:-Math.PI/2,moving:false,rerolls:2,anim:0,
+    dashT:0,dashCd:0,dvx:0,dvy:0,invuln:0,flask:60,flaskMax:60,frenzyT:0,healT:0,healRate:0,face:-Math.PI/2,moving:false,rerolls:2,anim:0,
     fury:false,frost:false,echo:false,pyreBoom:false,soul:false,critDouble:false,dmgTaken:0,pctRegen:0,burnMul:1,explMul:1,explArea:1,sacredMul:1,chainFire:false,chainAmp:.02,pull:1,feast:0,mega:false};
-  skills={bolt:1,sacred:0,nova:0,blades:0,storm:0,pyre:0,meteor:0};
+  skills={bolt:1,sacred:0,nova:0,blades:0,storm:0,pyre:0,meteor:0,herald:0,frag:0,after:0,bomb:0};
   if(cls==='fire'){skills.bolt=0;skills.sacred=1;p.maxHp=p.hp=180;p.pctRegen=.01;p.spd=145;}
-  skillT={bolt:.3,nova:1,blades:0,storm:1,pyre:0,meteor:1};
+  skillT={bolt:.3,nova:1,blades:0,storm:1,pyre:0,meteor:1,bomb:2};
   owned={};keys=new Set();
   enemies=[];projs=[];eprojs=[];orbs=[];parts=[];texts=[];fx=[];decals=[];pending=[];
-  chains.clear();chainSeq=0;score=0;bestChain=0;chainPops=[];
+  bombs=[];boomHeat=0;chains.clear();chainSeq=0;score=0;bestChain=0;chainPops=[];
   time=0;kills=0;bossKills=0;nextBossT=180;nextHordeT=60;spawnAcc=0;levelQueue=0;boss=null;
   cam.x=0;cam.y=0;shake=0;hurtFlash=0;
   fogFor=-1;
@@ -434,6 +451,11 @@ function dash(){
 function useFlask(){
   if(state!=='play'||p.flask<20||p.healT>0)return;
   p.flask-=20;p.healT=2;p.healRate=p.maxHp*p.flaskHeal/2;sfx('flask');
+  // Fiole Instable : déflagration + frénésie explosive
+  p.frenzyT=5;showBanner('','Frénésie explosive !','#ffd040',1.6);
+  const cid=newChain(p.x,p.y);
+  explosion(p.x,p.y,170*p.explArea,(30+p.maxHp*.35)*p.dmgMul*p.explMul,'player','#fff0a0',true,cid);
+  fx.push({k:'ring',x:p.x,y:p.y,r0:20,r1:260,t:0,max:.6,col:'#ffd040',w:14});shake=14;buzz(60);
   for(let i=0;i<16;i++)part(p.x+rand(-12,12),p.y+rand(-12,12),rand(-20,20),rand(-90,-30),rand(.6,1.1),2.5,'#ff3a3a',true);
 }
 
@@ -491,21 +513,27 @@ function killEnemy(e){
   if(!bone||Math.random()<.4)decals.push({x:e.x,y:e.y,r:e.r*rand(.8,1.5),a:.75,rot:rand(0,TAU),c:bone?'60,58,50':'70,6,6'});
   if(decals.length>140)decals.shift();
   if(Math.random()<.25)part(e.x,e.y,rand(-10,10),rand(-50,-30),rand(1.2,2),2.5,'#9fe0ff',true,true);
-  p.flask=Math.min(p.flaskMax,p.flask+p.flaskGain*(e.rarity?4:1)*(e.boss?20:1));
+  p.flask=Math.min(p.flaskMax,p.flask+.4*p.flaskGain*(e.rarity?4:1)*(e.boss?20:1));
   if(p.onKill)heal(p.onKill);
   if(p.soul)heal(p.maxHp*.02);
   if(e.explode||e.mods.includes('boom'))later(.05,()=>explosion(e.x,e.y,e.boss?140:66,e.dmg*1.4,'enemy','#9ac040'));
   if(p.pyreBoom&&Math.random()<.22){const [d]=roll(16+time/8);later(.05,()=>explosion(e.x,e.y,62*p.area*p.explArea,d*p.explMul,'player','#ff7a2a',true));}
   score+=e.boss?500:e.rarity===2?50:e.rarity?10:1;
-  if((skills.sacred||p.chainFire)&&e.burnT>0){const S=SK.sacred.num(Math.max(1,skills.sacred));
-    const cid=chainOf(e),c=chains.get(cid);c.n++;c.last=time;c.x=e.x;c.y=e.y;c.bump=time;
+  let hcid=e.chainId&&chains.has(e.chainId)?e.chainId:0;
+  if((skills.sacred||p.chainFire)&&(e.burnT>0||p.frenzyT>0)){const S=SK.sacred.num(Math.max(1,skills.sacred));
+    const cid=chainOf(e);hcid=cid;const c=chains.get(cid);c.n++;c.last=time;c.x=e.x;c.y=e.y;c.bump=time;
     const n=c.n,mega=p.mega&&n%10===0,amp=1+p.chainAmp*Math.min(n,250);
     const d=(e.maxHp*S.boom+S.dps*.3)*p.explMul*p.dmgMul*p.sacredMul*amp*(mega?3:1),
-      r=(50+e.r*1.3)*p.explArea*(e.boss?2:1)*(1+Math.min(.5,n*.008))*(mega?2.3:1);
+      r=(36+e.r)*p.explArea*(e.boss?2:1)*(1+Math.min(1.2,n*.012))*(mega?2.3:1)*(p.frenzyT>0?1.4:1);
     implode(e.x,e.y,r*1.9*p.pull,e.boss?2:1);
     if(p.feast&&n%10===0)heal(p.maxHp*.03*p.feast);
     chainSfx(n);
     later(.17,()=>corpseBoom(e.x,e.y,r,d,e.r,cid,mega));}
+  if(skills.herald){const H=SK.herald.num(skills.herald);
+    if(Math.random()<H.chance*(p.frenzyT>0?2:1))for(let i=0;i<H.n;i++){
+      let tg=null,cnt=0;gridQuery(e.x,e.y,170,o=>{if(!o.dead&&o!==e&&Math.random()<1/(++cnt))tg=o;});
+      const a=rand(0,TAU),tx=tg?tg.x:e.x+Math.cos(a)*rand(50,120),ty=tg?tg.y:e.y+Math.sin(a)*rand(50,120);
+      addBomb('ember',e.x,e.y,tx,ty,rand(.28,.42),H.rad*p.explArea,H.dmg*p.dmgMul*p.explMul,hcid,'#ffd040');}}
   if(e.rarity&&Math.random()<.35)orbs.push({x:e.x,y:e.y,v:0,kind:'heal',vx:rand(-40,40),vy:rand(-40,40)});
   if(e.boss)bossDefeated(e);
   sfx('kill');
@@ -526,7 +554,7 @@ function damageEnemy(e,d,crit,kx,ky,fire,cid){
   e.hp-=d;e.flash=.08;
   if(p.frost)e.slowT=Math.max(e.slowT,1.2);
   if(kx&&!e.boss){const m=13/e.r;e.kbx+=kx*m;e.kby+=ky*m;}
-  if(crit||texts.length<55)addText(e.x+rand(-6,6),e.y-e.r,Math.round(d),crit);
+  if(crit||texts.length<(cid?25:55))addText(e.x+rand(-6,6),e.y-e.r,Math.round(d),crit);
   if(Math.random()<.5)part(e.x,e.y,rand(-60,60),rand(-60,60),.35,2,e.type==='archer'?'#c8c0a8':'#7a0c0c');
   sfx('hit');
   if(e.hp<=0)killEnemy(e);
@@ -544,7 +572,7 @@ function updateChains(dt){
 }
 function implode(x,y,R,str){
   // le cadavre s'effondre et aspire ses voisins avant d'exploser
-  if(fx.length<110)fx.push({k:'implode',x,y,r:R,t:0,max:.17});
+  if(fx.length<70)fx.push({k:'implode',x,y,r:R,t:0,max:.17});
   enemiesInRadius(x,y,R,o=>{if(o.boss)return;o.kbx+=(x-o.x)*3.6*str;o.kby+=(y-o.y)*3.6*str;});
   for(let i=0;i<6;i++){const a=rand(0,TAU),d=R*rand(.5,1);part(x+Math.cos(a)*d,y+Math.sin(a)*d,-Math.cos(a)*d*5,-Math.sin(a)*d*5,.17,2.5,'#ffb060',true);}
 }
@@ -558,15 +586,39 @@ function corpseBoom(x,y,r,d,er,cid,mega){
   // cadavre qui explose : chair, flammes, onde de choc
   for(let i=0;i<8+er*.4;i++){const a=rand(0,TAU),s=rand(80,260);part(x,y,Math.cos(a)*s,Math.sin(a)*s,rand(.3,.6),rand(2.5,5),pick(['#5a0606','#3a0404','#7a1a0a']));}
   if(decals.length<140)decals.push({x,y,r:r*.55,a:.6,rot:rand(0,TAU),c:'30,10,6'});
-  if(fx.length<110)fx.push({k:'scorch',x,y,r,t:0,max:.5});
-  explosion(x,y,r,d,'player',mega?'#ffd040':'#ff8a20',true,cid);
+  if(fx.length<70)fx.push({k:'scorch',x,y,r,t:0,max:.5});
+  const c=cid&&chains.get(cid),n=c?c.n:0;
+  explosion(x,y,r,d,'player',mega?'#fff4c0':tierCol(n),true,cid);
 }
-function explosion(x,y,r,d,owner,col,fire,cid){
-  if(fx.length<110){fx.push({k:'flash',x,y,r:r*1.5,t:0,max:.45,col});fx.push({k:'ring',x,y,r0:8,r1:r,t:0,max:.35,col,w:5});}
-  for(let i=0;i<14;i++){const a=rand(0,TAU),s=rand(40,180)*r/60;part(x,y,Math.cos(a)*s,Math.sin(a)*s,rand(.3,.7),3,i%3?col:'#fff0a0',true);}
+// plus la chaîne est longue, plus ça brille : orange → or → blanc → violet du néant
+function tierCol(n){return n>=100?'#d070ff':n>=50?'#fff4c0':n>=25?'#ffe060':n>=10?'#ffb030':'#ff8a20';}
+function addBomb(kind,x0,y0,tx,ty,fuse,r,d,cid,col){
+  if(bombs.length>=170)return;
+  bombs.push({kind,x:x0,y:y0,x0,y0,tx,ty,t:0,fuse,r,d,cid,col,arc:kind==='rune'?0:rand(30,70)});
+}
+function updateBombs(dt){
+  for(const b of bombs){
+    b.t+=dt;const k=Math.min(1,b.t/b.fuse);
+    if(b.kind!=='rune'){b.x=b.x0+(b.tx-b.x0)*k;b.y=b.y0+(b.ty-b.y0)*k-Math.sin(k*Math.PI)*b.arc;
+      if(Math.random()<.6)part(b.x,b.y,rand(-20,20),rand(-20,20),.25,2,b.col,true);}
+    if(b.t>=b.fuse){b.dead=true;explosion(b.x,b.y,b.r,b.d,'player',b.col,true,b.cid,b.kind);}
+  }
+  bombs=bombs.filter(b=>!b.dead);
+}
+function explosion(x,y,r,d,owner,col,fire,cid,src){
+  boomHeat=Math.min(12,boomHeat+(owner==='enemy'?0:.12));
+  if(fx.length<70&&boomFx++<16){fx.push({k:'flash',x,y,r:r*1.5,t:0,max:.45,col});fx.push({k:'ring',x,y,r0:8,r1:r,t:0,max:.35,col,w:5});}
+  const np=parts.length>650?4:14+Math.min(16,boomHeat*2|0);
+  for(let i=0;i<np;i++){const a=rand(0,TAU),s=rand(40,180)*r/60;part(x,y,Math.cos(a)*s,Math.sin(a)*s,rand(.3,.7),3,i%3?col:'#fff0a0',true);}
   shake=Math.max(shake,owner==='enemy'?5:2.5);sfx('boom');
   if(owner==='enemy'){const dx=p.x-x,dy=p.y-y;if(dx*dx+dy*dy<(r+p.r)**2)hurt(d);}
-  else enemiesInRadius(x,y,r,e=>damageEnemy(e,d,false,0,0,fire&&(p.chainFire||skills.sacred>0),cid));
+  else{enemiesInRadius(x,y,r,e=>damageEnemy(e,d,false,0,0,fire&&(p.chainFire||skills.sacred>0),cid));
+    // effets secondaires : éclats et répliques (sans récursion sur eux-mêmes)
+    if(skills.frag&&src!=='frag'){const F=SK.frag.num(skills.frag);
+      if(Math.random()<F.chance*(p.frenzyT>0?1.6:1))for(let i=0;i<F.n;i++){const a=rand(0,TAU),dd=rand(40,110)*Math.sqrt(r/50);
+        addBomb('frag',x,y,x+Math.cos(a)*dd,y+Math.sin(a)*dd,rand(.3,.45),F.rad*p.explArea,d*F.pct,cid,'#ff9a50');}}
+    if(skills.after&&src!=='rune'&&src!=='frag'){const A=SK.after.num(skills.after);
+      if(Math.random()<A.chance)addBomb('rune',x,y,x,y,.6,r*.9,d*A.pct,cid,'#ff6a8a');}}
 }
 function later(t,fn){pending.push({t:time+t,fn});}
 
@@ -579,7 +631,7 @@ function dropXp(x,y,v,rar){
   }
 }
 function part(x,y,vx,vy,life,size,col,glw,soul){
-  if(parts.length>650)return;
+  if(parts.length>900)return;
   parts.push({x,y,vx,vy,life,max:life,size,col,glw:!!glw,soul:!!soul});
 }
 function bleed(x,y,col,n){for(let i=0;i<n;i++){const a=rand(0,TAU),s=rand(30,150);part(x,y,Math.cos(a)*s,Math.sin(a)*s,rand(.3,.7),rand(1.5,3.5),col);}}
@@ -603,6 +655,12 @@ function fireBolt(ang){
   sfx('shoot');
 }
 function updateSkills(dt){
+  // Bombe Vivante
+  if(skills.bomb){skillT.bomb-=dt;
+    if(skillT.bomb<=0){const B=SK.bomb.num(skills.bomb);skillT.bomb=B.cd;
+      const c=enemies.filter(e=>!e.dead&&!e.boss&&!(e.bombT>0)&&Math.hypot(e.x-p.x,e.y-p.y)<380);
+      for(let i=0;i<B.n&&c.length;i++){const e=c.splice((Math.random()*c.length)|0,1)[0];e.bombT=1.2;}
+      if(!c.length&&!enemies.length)skillT.bomb=.5;}}
   // Trait d'Ombre
   if(skills.bolt)skillT.bolt-=dt;
   if(skills.bolt&&skillT.bolt<=0){
@@ -633,7 +691,7 @@ function updateSkills(dt){
         const x=t.x+rand(-15,15),y=t.y+rand(-15,15),dl=i*.12;
         later(dl,()=>fx.push({k:'meteor',x,y,t:0,max:.45}));
         later(dl+.45,()=>{const [d]=roll(S.dmg);explosion(x,y,S.rad*p.area*p.explArea,d,'player','#ff6a1a',true);
-          if(fx.length<110)fx.push({k:'scorch',x,y,r:S.rad*p.area,t:0,max:.8});});}
+          if(fx.length<70)fx.push({k:'scorch',x,y,r:S.rad*p.area,t:0,max:.8});});}
     }
   }
   // Nova
@@ -805,6 +863,8 @@ function update(dt){
     });
   }
   projs=projs.filter(b=>b.life>0);
+  updateBombs(dt);
+  p.frenzyT-=dt;boomHeat=Math.max(0,boomHeat-dt*3);boomFx=0;
   // projectiles ennemis
   for(const b of eprojs){
     b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
@@ -842,6 +902,9 @@ function update(dt){
 function updateEnemies(dt){
   for(const e of enemies){
     if(e.dead)continue;
+    if(e.bombT>0){e.bombT-=dt;if(e.bombT<=0){const B=SK.bomb.num(Math.max(1,skills.bomb)),cid=newChain(e.x,e.y),[d]=roll(B.dmg+e.maxHp*.5);
+      fx.push({k:'ring',x:e.x,y:e.y,r0:10,r1:B.rad*p.explArea*1.3,t:0,max:.5,col:'#ff5a3a',w:12});shake=Math.max(shake,9);sfx('thunder');
+      explosion(e.x,e.y,B.rad*p.explArea,d*p.explMul,'player','#ff5a3a',true,cid);}}
     e.flash-=dt;e.slowT-=dt;e.burnT-=dt;e.hitCd-=dt;e.bladeCd-=dt;
     const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||1;
     e.ang=Math.atan2(dy,dx);
@@ -1187,7 +1250,7 @@ function render(){
   frameLights.push({x:p.x,y:p.y,r:320+fl,i:1});
   for(let i=0;i<projs.length&&i<30;i++)frameLights.push({x:projs[i].x,y:projs[i].y,r:70,i:.55});
   for(let i=0;i<eprojs.length&&i<25;i++)frameLights.push({x:eprojs[i].x,y:eprojs[i].y,r:45,i:.4});
-  let nl=0;for(const f of fx)if(f.k==='meteor')frameLights.push({x:f.x-160*(1-f.t/f.max),y:f.y-420*(1-f.t/f.max),r:90,i:.7});else if(f.k==='flash'&&nl++<26)frameLights.push({x:f.x,y:f.y,r:f.r,i:(1-f.t/f.max)*.9});
+  let nl=0;for(const f of fx)if(f.k==='meteor')frameLights.push({x:f.x-160*(1-f.t/f.max),y:f.y-420*(1-f.t/f.max),r:90,i:.7});else if(f.k==='flash'&&nl++<18)frameLights.push({x:f.x,y:f.y,r:f.r,i:(1-f.t/f.max)*.9});
   if(skills.sacred)frameLights.push({x:p.x,y:p.y,r:SK.sacred.num(skills.sacred).rad*p.area*2,i:.7});
   if(skills.pyre)frameLights.push({x:p.x,y:p.y,r:SK.pyre.num(skills.pyre).rad*p.area*1.6,i:.35});
   const A=act();
@@ -1229,6 +1292,13 @@ function render(){
   // projectiles
   for(const b of projs){glow('#a070ff',b.x,b.y,20,.8);glow('#f0e0ff',b.x,b.y,7,1);
     ctx.globalAlpha=.5;ctx.strokeStyle='#8a5aff';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*.04,b.y-b.vy*.04);ctx.stroke();}
+  for(const b of bombs){const k=b.t/b.fuse;
+    if(b.kind==='rune'){glow(b.col,b.x,b.y,b.r*(.35+.25*k),.25+.5*k);ctx.globalAlpha=.4+.5*k;ctx.strokeStyle=b.col;ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(b.x,b.y,b.r*.5*(1-k*.4),0,TAU);ctx.stroke();ctx.globalAlpha=1;}
+    else{glow(b.col,b.x,b.y,b.kind==='ember'?16:11,.95);glow('#fffbe0',b.x,b.y,5,1);}}
+  for(const e of enemies)if(e.bombT>0){const k=1-e.bombT/1.2,pu=1+Math.sin(time*(14+k*30))*.25;
+    glow('#ff2a10',e.x,e.y,e.r*(1.8+k*2)*pu,.4+.5*k);glow('#fff0c0',e.x,e.y,e.r*.8*pu,.5*k);}
+  if(p.frenzyT>0)glow('#ffe080',p.x,p.y,60+Math.sin(time*20)*8,.6);
   for(const b of eprojs){glow(b.col,b.x,b.y,b.r*3.2,.9);glow('#fff0d0',b.x,b.y,b.r*.9,.8);}
   ctx.globalAlpha=1;
   // lames spectrales
@@ -1258,6 +1328,11 @@ function render(){
     ctx.globalAlpha=a;ctx.fillStyle=q.col;ctx.fillRect(q.x-q.size/2,q.y-q.size/2,q.size,q.size);}
   ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
 
+  // éclat global : plus ça explose, plus l'écran s'embrase
+  if(boomHeat>.3){let cur=0;for(const c of chains.values())cur=Math.max(cur,c.n);
+    ctx.setTransform(DPR,0,0,DPR,0,0);ctx.globalCompositeOperation='lighter';
+    glow(tierCol(cur),W/2,H/2,Math.max(W,H)*.75,Math.min(.22,boomHeat*.025));
+    ctx.globalCompositeOperation='source-over';ctx.globalAlpha=1;}
   // ---- brume ----
   if(fogFor!==bossKills%ACTS.length){fogCanvas=buildFog(A.fog);fogFor=bossKills%ACTS.length;}
   ctx.setTransform(DPR,0,0,DPR,0,0);
